@@ -13,28 +13,31 @@
     <header class="topbar">
       <div>
         <h1>Controle de Dívidas</h1>
-        <p class="subtitle">Projeção financeira de 36 meses</p>
+        <p class="subtitle">Planejamento financeiro com projeção de 36 meses</p>
       </div>
-      <button id="btnTema" class="btn btn-ghost" type="button" aria-label="Alternar tema">🌙 Tema</button>
+      <button id="btnTema" class="btn btn-ghost" type="button">🌙 Tema</button>
     </header>
 
     <main>
+      <!-- MENU -->
       <section id="screen-menu" class="screen active">
-        <div class="hero-card">
+        <div class="card hero-card">
           <h2>Menu principal</h2>
-          <p>Escolha uma opção para começar.</p>
+          <p>Escolha uma opção.</p>
           <div class="menu-actions">
             <button id="btnIrInserir" class="btn btn-primary" type="button">Inserir dívida</button>
             <button id="btnIrConsultar" class="btn btn-secondary" type="button">Consultar projeção</button>
+            <button id="btnIrSimular" class="btn btn-secondary" type="button">Simular dívida</button>
           </div>
         </div>
 
-        <div class="helper-card">
+        <div class="card">
           <h3>Como funciona</h3>
-          <p>Cadastre dívidas fixas ou cartões com compras parceladas. O aplicativo calcula automaticamente a projeção dos próximos 36 meses.</p>
+          <p>Cadastre dívidas fixas, cartões, compras parceladas e rendas. O app calcula automaticamente a projeção dos próximos 36 meses.</p>
         </div>
       </section>
 
+      <!-- INSERIR -->
       <section id="screen-inserir" class="screen">
         <div class="screen-header">
           <button class="btn btn-ghost" data-back="menu" type="button">← Voltar</button>
@@ -54,13 +57,13 @@
           <h3>Dívida fixa</h3>
 
           <label for="fixaNome">Nome da dívida</label>
-          <input id="fixaNome" type="text" placeholder="Ex.: Carro" maxlength="80">
+          <input id="fixaNome" type="text" maxlength="80" placeholder="Ex.: Carro">
 
           <label for="fixaValor">Valor mensal</label>
-          <input id="fixaValor" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+          <input id="fixaValor" class="money-input" type="text" inputmode="numeric" placeholder="R$ 0,00">
 
           <label for="fixaParcelas">Parcelas restantes</label>
-          <input id="fixaParcelas" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 35">
+          <input id="fixaParcelas" type="number" inputmode="numeric" min="1" max="999" placeholder="Ex.: 35">
 
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">Salvar dívida fixa</button>
@@ -71,10 +74,10 @@
           <h3>Cartão</h3>
 
           <label for="cartaoNome">Nome do cartão</label>
-          <input id="cartaoNome" type="text" placeholder="Ex.: Master01" maxlength="80">
+          <input id="cartaoNome" type="text" maxlength="80" placeholder="Ex.: Master01">
 
           <label for="cartaoAnuidade">Anuidade mensal</label>
-          <input id="cartaoAnuidade" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+          <input id="cartaoAnuidade" class="money-input" type="text" inputmode="numeric" placeholder="R$ 0,00">
 
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">Salvar cartão</button>
@@ -88,16 +91,16 @@
           <select id="compraCartaoId"></select>
 
           <label for="compraNome">Nome da compra</label>
-          <input id="compraNome" type="text" placeholder="Ex.: Armazém Bezerra" maxlength="80">
+          <input id="compraNome" type="text" maxlength="80" placeholder="Ex.: Armazém Bezerra">
 
           <label for="compraValor">Valor da parcela</label>
-          <input id="compraValor" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+          <input id="compraValor" class="money-input" type="text" inputmode="numeric" placeholder="R$ 0,00">
 
           <label for="compraParcelaAtual">Parcela atual</label>
-          <input id="compraParcelaAtual" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 3">
+          <input id="compraParcelaAtual" type="number" inputmode="numeric" min="1" max="999" placeholder="Ex.: 3">
 
           <label for="compraTotalParcelas">Total de parcelas</label>
-          <input id="compraTotalParcelas" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 10">
+          <input id="compraTotalParcelas" type="number" inputmode="numeric" min="1" max="999" placeholder="Ex.: 10">
 
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">Salvar compra</button>
@@ -106,15 +109,43 @@
 
         <div class="card">
           <h3>Registros cadastrados</h3>
-          <p class="muted">Edite ou exclua qualquer item quando precisar.</p>
+          <p class="muted">Edite ou exclua quando precisar.</p>
           <div id="listaRegistros" class="stack"></div>
         </div>
       </section>
 
+      <!-- CONSULTAR -->
       <section id="screen-consultar" class="screen">
         <div class="screen-header">
           <button class="btn btn-ghost" data-back="menu" type="button">← Voltar</button>
           <h2>Consultar projeção</h2>
+        </div>
+
+        <div class="card">
+          <h3>Rendas do mês</h3>
+
+          <form id="formRenda" class="form-grid">
+            <label for="rendaNome">Nome da renda</label>
+            <input id="rendaNome" type="text" maxlength="80" placeholder="Ex.: Uber">
+
+            <label for="rendaValor">Valor</label>
+            <input id="rendaValor" class="money-input" type="text" inputmode="numeric" placeholder="R$ 0,00">
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Adicionar renda</button>
+            </div>
+          </form>
+
+          <div id="listaRendas" class="stack"></div>
+        </div>
+
+        <div id="cardSaudeFinanceira" class="card status-card">
+          <h3>Saúde financeira</h3>
+          <div class="summary-line"><span>Renda total</span><strong id="saudeRenda">R$ 0,00</strong></div>
+          <div class="summary-line"><span>Dívidas do mês</span><strong id="saudeDividas">R$ 0,00</strong></div>
+          <div class="summary-line"><span>Saldo</span><strong id="saudeSaldo">R$ 0,00</strong></div>
+          <div class="summary-line"><span>Comprometimento</span><strong id="saudeComprometimento">0%</strong></div>
+          <div id="saudeStatusTexto" class="status-text">Sem dados</div>
         </div>
 
         <div class="card month-nav-card">
@@ -148,6 +179,43 @@
         <div class="card">
           <h3>Detalhamento por categoria</h3>
           <div id="painelCategorias" class="stack"></div>
+        </div>
+
+        <div class="card">
+          <h3>Calendário de fim de dívidas</h3>
+          <div id="calendarioFimDividas" class="stack compact"></div>
+        </div>
+      </section>
+
+      <!-- SIMULAR -->
+      <section id="screen-simular" class="screen">
+        <div class="screen-header">
+          <button class="btn btn-ghost" data-back="menu" type="button">← Voltar</button>
+          <h2>Simular dívida</h2>
+        </div>
+
+        <form id="formSimulador" class="card form-grid">
+          <h3>Nova dívida simulada</h3>
+
+          <label for="simNome">Nome da dívida</label>
+          <input id="simNome" type="text" maxlength="80" placeholder="Ex.: Notebook">
+
+          <label for="simValor">Valor da parcela</label>
+          <input id="simValor" class="money-input" type="text" inputmode="numeric" placeholder="R$ 0,00">
+
+          <label for="simParcelas">Parcelas</label>
+          <input id="simParcelas" type="number" inputmode="numeric" min="1" max="999" placeholder="Ex.: 12">
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Simular</button>
+            <button id="btnLimparSimulacao" class="btn btn-secondary" type="button">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3>Resultado da simulação</h3>
+          <p class="muted">A simulação não altera os dados reais.</p>
+          <div id="resultadoSimulacao" class="stack"></div>
         </div>
       </section>
     </main>
