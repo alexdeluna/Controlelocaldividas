@@ -1,11 +1,5 @@
-/* =========================================================
-   CONTROLE DE DÍVIDAS - APP.JS
-   Aplicativo PWA sem login e sem Firebase.
-   Dados salvos localmente no localStorage.
-   ========================================================= */
-
-const STORAGE_KEY = "controle_dividas_v1";
-const THEME_KEY = "controle_dividas_tema";
+const STORAGE_KEY = "controle_dividas_v2";
+const THEME_KEY = "controle_dividas_tema_v2";
 const PROJECAO_MESES = 36;
 
 const MONTH_NAMES = [
@@ -17,17 +11,16 @@ const state = {
   screen: "menu",
   monthIndex: 0,
   resumo36Aberto: false,
-  expandedCategories: {
-    fixas: false,
-    cartoes: false
-  },
+  expandedCategories: { fixas: false, cartoes: false },
   expandedCards: {},
+  editing: { type: null, id: null },
   db: loadDB(),
-  projection: []
+  projection: [],
+  simulation: null
 };
 
 /* =========================================================
-   1. INICIALIZAÇÃO
+   INICIALIZAÇÃO
    ========================================================= */
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
@@ -38,38 +31,39 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindEvents() {
-  document.getElementById("btnTema").addEventListener("click", toggleTheme);
-  document.getElementById("btnIrInserir").addEventListener("click", () => showScreen("inserir"));
-  document.getElementById("btnIrConsultar").addEventListener("click", () => showScreen("consultar"));
-  document.getElementById("btnMesAnterior").addEventListener("click", previousMonth);
-  document.getElementById("btnMesSeguinte").addEventListener("click", nextMonth);
-  document.getElementById("btnToggleResumo36").addEventListener("click", toggleResumo36);
-  document.getElementById("tipoCadastro").addEventListener("change", updateCadastroForms);
+  byId("btnTema").addEventListener("click", toggleTheme);
+  byId("btnIrInserir").addEventListener("click", () => showScreen("inserir"));
+  byId("btnIrConsultar").addEventListener("click", () => showScreen("consultar"));
+  byId("btnIrSimular").addEventListener("click", () => showScreen("simular"));
 
   document.querySelectorAll("[data-back]").forEach(btn => {
     btn.addEventListener("click", () => showScreen(btn.dataset.back));
   });
 
-  document.getElementById("formFixa").addEventListener("submit", onSubmitFixa);
-  document.getElementById("formCartao").addEventListener("submit", onSubmitCartao);
-  document.getElementById("formCompra").addEventListener("submit", onSubmitCompra);
+  byId("btnMesAnterior").addEventListener("click", previousMonth);
+  byId("btnMesSeguinte").addEventListener("click", nextMonth);
+  byId("btnToggleResumo36").addEventListener("click", toggleResumo36);
 
-  document.querySelectorAll(".money-input").forEach(input => {
-    input.addEventListener("input", onMoneyInput);
-    input.addEventListener("focus", () => {
-      if (!input.value.trim()) input.value = formatMoneyFromDigits("");
-    });
-  });
+  byId("tipoCadastro").addEventListener("change", updateCadastroForms);
+  byId("formFixa").addEventListener("submit", onSubmitFixa);
+  byId("formCartao").addEventListener("submit", onSubmitCartao);
+  byId("formCompra").addEventListener("submit", onSubmitCompra);
+  byId("formRenda").addEventListener("submit", onSubmitRenda);
+  byId("formSimulador").addEventListener("submit", onSubmitSimulador);
+  byId("btnLimparSimulacao").addEventListener("click", clearSimulation);
+
+  document.querySelectorAll(".money-input").forEach(bindMoneyInput);
 }
 
 /* =========================================================
-   2. BANCO LOCAL (LOCALSTORAGE)
+   BANCO LOCAL
    ========================================================= */
 function defaultDB() {
   return {
     dividasFixas: [],
     cartoes: [],
-    comprasCartao: []
+    comprasCartao: [],
+    rendas: []
   };
 }
 
@@ -78,11 +72,11 @@ function loadDB() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultDB();
     const parsed = JSON.parse(raw);
-
     return {
       dividasFixas: Array.isArray(parsed.dividasFixas) ? parsed.dividasFixas : [],
       cartoes: Array.isArray(parsed.cartoes) ? parsed.cartoes : [],
-      comprasCartao: Array.isArray(parsed.comprasCartao) ? parsed.comprasCartao : []
+      comprasCartao: Array.isArray(parsed.comprasCartao) ? parsed.comprasCartao : [],
+      rendas: Array.isArray(parsed.rendas) ? parsed.rendas : []
     };
   } catch {
     return defaultDB();
@@ -94,7 +88,7 @@ function saveDB() {
 }
 
 /* =========================================================
-   3. TEMA CLARO/ESCURO
+   TEMA
    ========================================================= */
 function applySavedTheme() {
   const theme = localStorage.getItem(THEME_KEY) || "light";
@@ -109,48 +103,51 @@ function toggleTheme() {
 }
 
 function updateThemeButtonText() {
-  const isDark = document.body.classList.contains("dark");
-  document.getElementById("btnTema").textContent = isDark ? "☀ Tema" : "🌙 Tema";
+  byId("btnTema").textContent = document.body.classList.contains("dark") ? "☀ Tema" : "🌙 Tema";
 }
 
 /* =========================================================
-   4. NAVEGAÇÃO DE TELAS
+   NAVEGAÇÃO
    ========================================================= */
 function showScreen(screen) {
   state.screen = screen;
-  document.querySelectorAll(".screen").forEach(section => section.classList.remove("active"));
-  document.getElementById(`screen-${screen}`).classList.add("active");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  byId(`screen-${screen}`).classList.add("active");
 
-  if (screen === "consultar") {
-    renderConsulta();
-  }
   if (screen === "inserir") {
     renderRegistros();
     updateCadastroForms();
     fillCartaoSelect();
+  } else if (screen === "consultar") {
+    renderConsulta();
+  } else if (screen === "simular") {
+    renderSimulation();
   }
 }
 
 function renderAll() {
   renderRegistros();
   renderConsulta();
+  renderSimulation();
   updateCadastroForms();
   fillCartaoSelect();
 }
 
 /* =========================================================
-   5. MÁSCARA MONETÁRIA - VÍRGULA FLUTUANTE
-   Guardamos valores em centavos para manter precisão.
-   Ex.: usuário digita 550 -> campo mostra R$ 5,50
+   MÁSCARA MONETÁRIA
    ========================================================= */
+function bindMoneyInput(input) {
+  input.addEventListener("input", onMoneyInput);
+}
+
 function onMoneyInput(event) {
   event.target.value = formatMoneyFromDigits(event.target.value);
 }
 
 function formatMoneyFromDigits(value) {
   const digits = String(value || "").replace(/\D/g, "");
-  const normalized = digits ? Number(digits) : 0;
-  return formatCurrency(normalized);
+  const cents = digits ? Number(digits) : 0;
+  return formatCurrency(cents);
 }
 
 function parseMoneyInput(value) {
@@ -166,35 +163,33 @@ function formatCurrency(cents) {
 }
 
 /* =========================================================
-   6. FORMULÁRIOS DE CADASTRO
+   CADASTROS
    ========================================================= */
 function updateCadastroForms() {
-  const tipo = document.getElementById("tipoCadastro").value;
-  document.getElementById("formFixa").classList.toggle("hidden", tipo !== "fixa");
-  document.getElementById("formCartao").classList.toggle("hidden", tipo !== "cartao");
-  document.getElementById("formCompra").classList.toggle("hidden", tipo !== "compra");
+  const tipo = byId("tipoCadastro").value;
+  byId("formFixa").classList.toggle("hidden", tipo !== "fixa");
+  byId("formCartao").classList.toggle("hidden", tipo !== "cartao");
+  byId("formCompra").classList.toggle("hidden", tipo !== "compra");
 
-  const formCompra = document.getElementById("formCompra");
   const hasCards = state.db.cartoes.length > 0;
-  const alertId = "compraNoCardsAlert";
-  let alertEl = document.getElementById(alertId);
+  const formCompra = byId("formCompra");
+  let alert = byId("compraNoCardsAlert");
 
   if (tipo === "compra" && !hasCards) {
-    if (!alertEl) {
-      alertEl = document.createElement("div");
-      alertEl.id = alertId;
-      alertEl.className = "alert-inline";
-      alertEl.textContent = "Cadastre um cartão antes de inserir uma compra.";
-      formCompra.appendChild(alertEl);
+    if (!alert) {
+      alert = document.createElement("div");
+      alert.id = "compraNoCardsAlert";
+      alert.className = "alert-inline";
+      alert.textContent = "Cadastre um cartão antes de inserir uma compra.";
+      formCompra.appendChild(alert);
     }
-  } else if (alertEl) {
-    alertEl.remove();
+  } else if (alert) {
+    alert.remove();
   }
 }
 
 function fillCartaoSelect() {
-  const select = document.getElementById("compraCartaoId");
-  const currentValue = select.value;
+  const select = byId("compraCartaoId");
   select.innerHTML = "";
 
   if (!state.db.cartoes.length) {
@@ -211,21 +206,16 @@ function fillCartaoSelect() {
     option.textContent = cartao.nome;
     select.appendChild(option);
   });
-
-  if (currentValue && state.db.cartoes.some(c => c.id === currentValue)) {
-    select.value = currentValue;
-  }
 }
 
 function onSubmitFixa(event) {
   event.preventDefault();
-
-  const nome = document.getElementById("fixaNome").value.trim();
-  const valorCentavos = parseMoneyInput(document.getElementById("fixaValor").value);
-  const parcelasRestantes = Number(document.getElementById("fixaParcelas").value);
+  const nome = byId("fixaNome").value.trim();
+  const valorCentavos = parseMoneyInput(byId("fixaValor").value);
+  const parcelasRestantes = Number(byId("fixaParcelas").value);
 
   if (!nome || !valorCentavos || !parcelasRestantes || parcelasRestantes < 1) {
-    alert("Preencha nome, valor e parcelas restantes corretamente.");
+    alert("Preencha a dívida fixa corretamente.");
     return;
   }
 
@@ -236,18 +226,15 @@ function onSubmitFixa(event) {
     parcelasRestantes
   });
 
-  saveDB();
-  recalculateProjection();
+  saveAndRefresh();
   clearForm("formFixa");
-  renderAll();
   alert("Dívida fixa salva com sucesso.");
 }
 
 function onSubmitCartao(event) {
   event.preventDefault();
-
-  const nome = document.getElementById("cartaoNome").value.trim();
-  const anuidadeCentavos = parseMoneyInput(document.getElementById("cartaoAnuidade").value);
+  const nome = byId("cartaoNome").value.trim();
+  const anuidadeCentavos = parseMoneyInput(byId("cartaoAnuidade").value);
 
   if (!nome) {
     alert("Informe o nome do cartão.");
@@ -260,10 +247,8 @@ function onSubmitCartao(event) {
     anuidadeCentavos
   });
 
-  saveDB();
-  recalculateProjection();
+  saveAndRefresh();
   clearForm("formCartao");
-  renderAll();
   alert("Cartão salvo com sucesso.");
 }
 
@@ -275,14 +260,14 @@ function onSubmitCompra(event) {
     return;
   }
 
-  const cartaoId = document.getElementById("compraCartaoId").value;
-  const nome = document.getElementById("compraNome").value.trim();
-  const valorParcelaCentavos = parseMoneyInput(document.getElementById("compraValor").value);
-  const parcelaAtual = Number(document.getElementById("compraParcelaAtual").value);
-  const totalParcelas = Number(document.getElementById("compraTotalParcelas").value);
+  const cartaoId = byId("compraCartaoId").value;
+  const nome = byId("compraNome").value.trim();
+  const valorParcelaCentavos = parseMoneyInput(byId("compraValor").value);
+  const parcelaAtual = Number(byId("compraParcelaAtual").value);
+  const totalParcelas = Number(byId("compraTotalParcelas").value);
 
   if (!cartaoId || !nome || !valorParcelaCentavos || !parcelaAtual || !totalParcelas || parcelaAtual < 1 || totalParcelas < parcelaAtual) {
-    alert("Preencha todos os campos da compra corretamente.");
+    alert("Preencha a compra corretamente.");
     return;
   }
 
@@ -295,22 +280,39 @@ function onSubmitCompra(event) {
     totalParcelas
   });
 
-  saveDB();
-  recalculateProjection();
+  saveAndRefresh();
   clearForm("formCompra");
-  renderAll();
   alert("Compra salva com sucesso.");
 }
 
+function onSubmitRenda(event) {
+  event.preventDefault();
+  const nome = byId("rendaNome").value.trim();
+  const valorCentavos = parseMoneyInput(byId("rendaValor").value);
+
+  if (!nome || !valorCentavos) {
+    alert("Preencha a renda corretamente.");
+    return;
+  }
+
+  state.db.rendas.push({
+    id: generateId("renda"),
+    nome,
+    valorCentavos
+  });
+
+  saveAndRefresh();
+  clearForm("formRenda");
+}
+
 function clearForm(formId) {
-  const form = document.getElementById(formId);
+  const form = byId(formId);
   form.reset();
   form.querySelectorAll(".money-input").forEach(input => input.value = "");
 }
 
 /* =========================================================
-   7. REGRAS DE PROJEÇÃO
-   Transformamos tudo em uma estrutura uniforme e projetamos 36 meses.
+   PROJEÇÃO E SAÚDE FINANCEIRA
    ========================================================= */
 function recalculateProjection() {
   state.projection = buildProjection(state.db);
@@ -319,6 +321,7 @@ function recalculateProjection() {
 
 function buildProjection(db) {
   const months = [];
+  const rendaTotalCentavos = db.rendas.reduce((sum, renda) => sum + renda.valorCentavos, 0);
   const start = new Date();
   start.setDate(1);
 
@@ -327,27 +330,21 @@ function buildProjection(db) {
 
     const monthData = {
       offset,
+      date: ref,
       label: `${MONTH_NAMES[ref.getMonth()]} de ${ref.getFullYear()}`,
+      rendaTotalCentavos,
       totalCentavos: 0,
-      fixas: {
-        totalCentavos: 0,
-        items: []
-      },
-      cartoes: {
-        totalCentavos: 0,
-        items: []
-      }
+      saldoCentavos: 0,
+      comprometimento: 0,
+      status: "yellow",
+      statusText: "Atenção",
+      fixas: { totalCentavos: 0, items: [] },
+      cartoes: { totalCentavos: 0, items: [] }
     };
 
     db.dividasFixas.forEach(divida => {
       if (divida.parcelasRestantes > offset) {
-        monthData.fixas.items.push({
-          id: divida.id,
-          nome: divida.nome,
-          valorCentavos: divida.valorCentavos,
-          parcelasRestantes: divida.parcelasRestantes,
-          tipo: "fixa"
-        });
+        monthData.fixas.items.push({ ...divida, tipo: "fixa" });
         monthData.fixas.totalCentavos += divida.valorCentavos;
         monthData.totalCentavos += divida.valorCentavos;
       }
@@ -358,16 +355,12 @@ function buildProjection(db) {
         .filter(compra => compra.cartaoId === cartao.id)
         .filter(compra => (compra.totalParcelas - compra.parcelaAtual + 1) > offset)
         .map(compra => ({
-          id: compra.id,
-          nome: compra.nome,
-          valorCentavos: compra.valorParcelaCentavos,
-          parcelaAtual: compra.parcelaAtual,
-          totalParcelas: compra.totalParcelas,
+          ...compra,
           parcelasRestantes: compra.totalParcelas - compra.parcelaAtual + 1,
           tipo: "compra"
         }));
 
-      const comprasTotal = comprasAtivas.reduce((acc, item) => acc + item.valorCentavos, 0);
+      const comprasTotal = comprasAtivas.reduce((sum, c) => sum + c.valorParcelaCentavos, 0);
       const anuidade = Number(cartao.anuidadeCentavos || 0);
       const totalCartao = comprasTotal + anuidade;
 
@@ -380,11 +373,17 @@ function buildProjection(db) {
           compras: comprasAtivas,
           tipo: "cartao"
         });
-
         monthData.cartoes.totalCentavos += totalCartao;
         monthData.totalCentavos += totalCartao;
       }
     });
+
+    monthData.saldoCentavos = rendaTotalCentavos - monthData.totalCentavos;
+    monthData.comprometimento = rendaTotalCentavos > 0 ? monthData.totalCentavos / rendaTotalCentavos : (monthData.totalCentavos > 0 ? 999 : 0);
+
+    const statusObj = getFinancialStatus(monthData.totalCentavos, rendaTotalCentavos);
+    monthData.status = statusObj.status;
+    monthData.statusText = statusObj.text;
 
     months.push(monthData);
   }
@@ -392,27 +391,87 @@ function buildProjection(db) {
   return months;
 }
 
-/* =========================================================
-   8. CONSULTA E VISUALIZAÇÃO EM 3 NÍVEIS
-   Nível 1: resumo do mês
-   Nível 2: categoria
-   Nível 3: detalhe completo
-   ========================================================= */
-function renderConsulta() {
-  const month = state.projection[state.monthIndex] || emptyProjectionMonth();
+function getFinancialStatus(dividas, renda) {
+  if (renda <= 0 && dividas <= 0) return { status: "yellow", text: "Sem rendas e sem dívidas" };
+  if (renda <= 0 && dividas > 0) return { status: "red", text: "Sem renda cadastrada" };
 
-  document.getElementById("mesTitulo").textContent = month.label;
-  document.getElementById("mesSubtitulo").textContent = `Mês ${state.monthIndex + 1} de ${PROJECAO_MESES}`;
-  document.getElementById("totalMes").textContent = formatCurrency(month.totalCentavos);
-
-  renderResumoMes(month);
-  renderCategorias(month);
-  renderResumo36();
+  const ratio = dividas / renda;
+  if (ratio < 0.7) return { status: "green", text: "Situação saudável" };
+  if (ratio <= 1) return { status: "yellow", text: "Atenção com os gastos" };
+  return { status: "red", text: "Dívidas maiores que renda" };
 }
 
-function renderResumoMes(month) {
-  const container = document.getElementById("painelResumoMes");
-  container.innerHTML = `
+function getCurrentMonthData() {
+  return state.projection[state.monthIndex] || emptyProjectionMonth();
+}
+
+/* =========================================================
+   RENDER CONSULTA
+   ========================================================= */
+function renderConsulta() {
+  renderRendas();
+  renderHealthCard();
+  renderMonthProjection();
+  renderResumo36();
+  renderCalendarioFimDividas();
+}
+
+function renderRendas() {
+  const container = byId("listaRendas");
+  container.innerHTML = "";
+
+  if (!state.db.rendas.length) {
+    container.appendChild(emptyNode("Nenhuma renda cadastrada."));
+    return;
+  }
+
+  state.db.rendas.forEach(renda => {
+    const isEditing = state.editing.type === "renda" && state.editing.id === renda.id;
+    const card = document.createElement("div");
+    card.className = "summary-item";
+
+    if (isEditing) {
+      card.appendChild(buildEditRendaForm(renda));
+    } else {
+      card.innerHTML = `
+        <div class="row-between">
+          <div>
+            <div class="title">${escapeHtml(renda.nome)}</div>
+          </div>
+          <strong>${formatCurrency(renda.valorCentavos)}</strong>
+        </div>
+      `;
+      card.appendChild(buildActions({
+        onEdit: () => startEditing("renda", renda.id),
+        onDelete: () => deleteRenda(renda.id)
+      }));
+    }
+
+    container.appendChild(card);
+  });
+}
+
+function renderHealthCard() {
+  const month = getCurrentMonthData();
+  const card = byId("cardSaudeFinanceira");
+  card.classList.remove("status-green", "status-yellow", "status-red");
+  card.classList.add(`status-${month.status}`);
+
+  byId("saudeRenda").textContent = formatCurrency(month.rendaTotalCentavos);
+  byId("saudeDividas").textContent = formatCurrency(month.totalCentavos);
+  byId("saudeSaldo").textContent = formatCurrency(month.saldoCentavos);
+  byId("saudeComprometimento").textContent = formatPercent(month.comprometimento);
+  byId("saudeStatusTexto").textContent = month.statusText;
+}
+
+function renderMonthProjection() {
+  const month = getCurrentMonthData();
+
+  byId("mesTitulo").textContent = month.label;
+  byId("mesSubtitulo").textContent = `Mês ${state.monthIndex + 1} de ${PROJECAO_MESES}`;
+  byId("totalMes").textContent = formatCurrency(month.totalCentavos);
+
+  byId("painelResumoMes").innerHTML = `
     <div class="summary-line">
       <span>Dívidas fixas</span>
       <strong>${formatCurrency(month.fixas.totalCentavos)}</strong>
@@ -421,31 +480,34 @@ function renderResumoMes(month) {
       <span>Cartões</span>
       <strong>${formatCurrency(month.cartoes.totalCentavos)}</strong>
     </div>
+    <div class="summary-line">
+      <span>Status</span>
+      <span class="projection-status ${month.status}">${month.statusText}</span>
+    </div>
   `;
+
+  renderCategorias(month);
 }
 
 function renderCategorias(month) {
-  const container = document.getElementById("painelCategorias");
+  const container = byId("painelCategorias");
   container.innerHTML = "";
 
-  const fixasCard = createCategoryCard({
+  container.appendChild(createCategoryCard({
     key: "fixas",
     title: "Dívidas fixas",
     totalCentavos: month.fixas.totalCentavos,
     itemsCount: month.fixas.items.length,
     detailRenderer: () => renderFixasDetalhes(month)
-  });
+  }));
 
-  const cartoesCard = createCategoryCard({
+  container.appendChild(createCategoryCard({
     key: "cartoes",
     title: "Cartões",
     totalCentavos: month.cartoes.totalCentavos,
     itemsCount: month.cartoes.items.length,
     detailRenderer: () => renderCartoesDetalhes(month)
-  });
-
-  container.appendChild(fixasCard);
-  container.appendChild(cartoesCard);
+  }));
 }
 
 function createCategoryCard({ key, title, totalCentavos, itemsCount, detailRenderer }) {
@@ -466,8 +528,7 @@ function createCategoryCard({ key, title, totalCentavos, itemsCount, detailRende
     </div>
   `;
 
-  const button = wrapper.querySelector("button");
-  button.addEventListener("click", () => {
+  wrapper.querySelector("button").addEventListener("click", () => {
     state.expandedCategories[key] = !state.expandedCategories[key];
     renderConsulta();
   });
@@ -509,13 +570,11 @@ function renderCartoesDetalhes(month) {
     div.className = "detail-card";
 
     const isExpanded = !!state.expandedCards[cartao.id];
-    const comprasCount = cartao.compras.length;
-
     div.innerHTML = `
       <div class="row-between">
         <div>
           <div class="title">${escapeHtml(cartao.nome)}</div>
-          <div class="muted">${comprasCount} compra(s) ativa(s)</div>
+          <div class="muted">${cartao.compras.length} compra(s) ativa(s)</div>
         </div>
         <div style="text-align:right">
           <div><strong>${formatCurrency(cartao.totalCentavos)}</strong></div>
@@ -534,31 +593,31 @@ function renderCartoesDetalhes(month) {
       nested.className = "indent";
 
       if (cartao.anuidadeCentavos > 0) {
-        const anuidadeNode = document.createElement("div");
-        anuidadeNode.className = "summary-item";
-        anuidadeNode.innerHTML = `
+        const node = document.createElement("div");
+        node.className = "summary-item";
+        node.innerHTML = `
           <div class="row-between">
             <span class="title">Anuidade</span>
             <strong>${formatCurrency(cartao.anuidadeCentavos)}</strong>
           </div>
         `;
-        nested.appendChild(anuidadeNode);
+        nested.appendChild(node);
       }
 
       if (cartao.compras.length) {
         cartao.compras.forEach(compra => {
-          const compraNode = document.createElement("div");
-          compraNode.className = "summary-item";
-          compraNode.innerHTML = `
+          const node = document.createElement("div");
+          node.className = "summary-item";
+          node.innerHTML = `
             <div class="row-between">
               <div>
                 <div class="title">${escapeHtml(compra.nome)}</div>
                 <div class="muted">Parcela ${compra.parcelaAtual}/${compra.totalParcelas}</div>
               </div>
-              <strong>${formatCurrency(compra.valorCentavos)}</strong>
+              <strong>${formatCurrency(compra.valorParcelaCentavos)}</strong>
             </div>
           `;
-          nested.appendChild(compraNode);
+          nested.appendChild(node);
         });
       } else {
         nested.appendChild(emptyNode("Somente anuidade neste mês."));
@@ -577,9 +636,9 @@ function toggleResumo36() {
 }
 
 function renderResumo36() {
-  const box = document.getElementById("painelResumo36");
-  const list = document.getElementById("listaResumo36");
-  const btn = document.getElementById("btnToggleResumo36");
+  const box = byId("painelResumo36");
+  const list = byId("listaResumo36");
+  const btn = byId("btnToggleResumo36");
 
   box.classList.toggle("hidden", !state.resumo36Aberto);
   btn.textContent = state.resumo36Aberto ? "Ocultar 36 meses" : "Ver 36 meses";
@@ -592,8 +651,14 @@ function renderResumo36() {
     item.className = "summary-item";
     item.innerHTML = `
       <div class="row-between">
-        <span class="title">${month.label}</span>
-        <strong>${formatCurrency(month.totalCentavos)}</strong>
+        <div>
+          <div class="title">${month.label}</div>
+          <div class="muted">${month.statusText}</div>
+        </div>
+        <div style="text-align:right">
+          <div><strong>${formatCurrency(month.saldoCentavos)}</strong></div>
+          <span class="projection-status ${month.status}">${formatPercent(month.comprometimento)}</span>
+        </div>
       </div>
     `;
     item.addEventListener("click", () => {
@@ -602,6 +667,67 @@ function renderResumo36() {
     });
     list.appendChild(item);
   });
+}
+
+function renderCalendarioFimDividas() {
+  const container = byId("calendarioFimDividas");
+  container.innerHTML = "";
+
+  const timeline = buildTimeline();
+  if (!timeline.length) {
+    container.appendChild(emptyNode("Nenhuma data de encerramento disponível."));
+    return;
+  }
+
+  timeline.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "timeline-item";
+    div.innerHTML = `
+      <div class="row-between">
+        <div>
+          <div class="title">${item.label}</div>
+          <div class="muted">${escapeHtml(item.nome)}</div>
+        </div>
+        <span class="tag">${item.tipoLabel}</span>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function buildTimeline() {
+  const list = [];
+  const start = new Date();
+  start.setDate(1);
+
+  state.db.dividasFixas.forEach(item => {
+    const endOffset = item.parcelasRestantes - 1;
+    if (endOffset >= 0) {
+      list.push({
+        nome: item.nome,
+        tipoLabel: "Dívida fixa",
+        date: new Date(start.getFullYear(), start.getMonth() + endOffset, 1)
+      });
+    }
+  });
+
+  state.db.comprasCartao.forEach(item => {
+    const restantes = item.totalParcelas - item.parcelaAtual + 1;
+    const endOffset = restantes - 1;
+    if (endOffset >= 0) {
+      list.push({
+        nome: item.nome,
+        tipoLabel: "Compra do cartão",
+        date: new Date(start.getFullYear(), start.getMonth() + endOffset, 1)
+      });
+    }
+  });
+
+  list.sort((a, b) => a.date - b.date);
+  return list.map(item => ({
+    ...item,
+    label: `${MONTH_NAMES[item.date.getMonth()]} de ${item.date.getFullYear()}`
+  }));
 }
 
 function previousMonth() {
@@ -618,20 +744,72 @@ function nextMonth() {
   }
 }
 
-function emptyProjectionMonth() {
-  return {
-    label: "Sem dados",
-    totalCentavos: 0,
-    fixas: { totalCentavos: 0, items: [] },
-    cartoes: { totalCentavos: 0, items: [] }
-  };
+/* =========================================================
+   SIMULADOR
+   ========================================================= */
+function onSubmitSimulador(event) {
+  event.preventDefault();
+  const nome = byId("simNome").value.trim();
+  const valorCentavos = parseMoneyInput(byId("simValor").value);
+  const parcelas = Number(byId("simParcelas").value);
+
+  if (!nome || !valorCentavos || !parcelas || parcelas < 1) {
+    alert("Preencha a simulação corretamente.");
+    return;
+  }
+
+  state.simulation = { nome, valorCentavos, parcelas };
+  renderSimulation();
+}
+
+function clearSimulation() {
+  state.simulation = null;
+  byId("formSimulador").reset();
+  byId("simValor").value = "";
+  renderSimulation();
+}
+
+function renderSimulation() {
+  const container = byId("resultadoSimulacao");
+  container.innerHTML = "";
+
+  if (!state.simulation) {
+    container.appendChild(emptyNode("Nenhuma dívida simulada."));
+    return;
+  }
+
+  state.projection.forEach((month, index) => {
+    const simAtiva = index < state.simulation.parcelas;
+    const novoTotal = month.totalCentavos + (simAtiva ? state.simulation.valorCentavos : 0);
+    const novaRenda = month.rendaTotalCentavos;
+    const novoSaldo = novaRenda - novoTotal;
+    const novoStatus = getFinancialStatus(novoTotal, novaRenda);
+    const comprometimento = novaRenda > 0 ? novoTotal / novaRenda : (novoTotal > 0 ? 999 : 0);
+
+    const item = document.createElement("div");
+    item.className = "summary-item";
+    item.innerHTML = `
+      <div class="row-between">
+        <div>
+          <div class="title">${month.label}</div>
+          <div class="muted">${simAtiva ? "Simulação ativa" : "Sem impacto da simulação"}</div>
+        </div>
+        <div style="text-align:right">
+          <div><strong>${formatCurrency(novoSaldo)}</strong></div>
+          <span class="projection-status ${novoStatus.status}">${novoStatus.text}</span>
+          <div class="muted">${formatPercent(comprometimento)}</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(item);
+  });
 }
 
 /* =========================================================
-   9. REGISTROS CADASTRADOS (EDIÇÃO E EXCLUSÃO)
+   REGISTROS E EDIÇÃO EM TELA
    ========================================================= */
 function renderRegistros() {
-  const container = document.getElementById("listaRegistros");
+  const container = byId("listaRegistros");
   container.innerHTML = "";
 
   const hasAny = state.db.dividasFixas.length || state.db.cartoes.length || state.db.comprasCartao.length;
@@ -650,21 +828,25 @@ function renderRegistros() {
     state.db.dividasFixas.forEach(item => {
       const row = document.createElement("div");
       row.className = "summary-item";
-      row.innerHTML = `
-        <div class="row-between">
-          <div>
-            <div class="title">${escapeHtml(item.nome)}</div>
-            <div class="muted">${item.parcelasRestantes} parcela(s) restantes</div>
-          </div>
-          <strong>${formatCurrency(item.valorCentavos)}</strong>
-        </div>
-      `;
 
-      const actions = buildActions({
-        onEdit: () => editFixa(item.id),
-        onDelete: () => deleteFixa(item.id)
-      });
-      row.appendChild(actions);
+      if (state.editing.type === "fixa" && state.editing.id === item.id) {
+        row.appendChild(buildEditFixaForm(item));
+      } else {
+        row.innerHTML = `
+          <div class="row-between">
+            <div>
+              <div class="title">${escapeHtml(item.nome)}</div>
+              <div class="muted">${item.parcelasRestantes} parcela(s) restantes</div>
+            </div>
+            <strong>${formatCurrency(item.valorCentavos)}</strong>
+          </div>
+        `;
+        row.appendChild(buildActions({
+          onEdit: () => startEditing("fixa", item.id),
+          onDelete: () => deleteFixa(item.id)
+        }));
+      }
+
       nested.appendChild(row);
     });
 
@@ -684,21 +866,24 @@ function renderRegistros() {
 
       const row = document.createElement("div");
       row.className = "summary-item";
-      row.innerHTML = `
-        <div class="row-between">
-          <div>
-            <div class="title">${escapeHtml(cartao.nome)}</div>
-            <div class="muted">${compras.length} compra(s) vinculada(s)</div>
-          </div>
-          <strong>${formatCurrency(cartao.anuidadeCentavos || 0)}</strong>
-        </div>
-      `;
 
-      const actions = buildActions({
-        onEdit: () => editCartao(cartao.id),
-        onDelete: () => deleteCartao(cartao.id)
-      });
-      row.appendChild(actions);
+      if (state.editing.type === "cartao" && state.editing.id === cartao.id) {
+        row.appendChild(buildEditCartaoForm(cartao));
+      } else {
+        row.innerHTML = `
+          <div class="row-between">
+            <div>
+              <div class="title">${escapeHtml(cartao.nome)}</div>
+              <div class="muted">${compras.length} compra(s) vinculada(s)</div>
+            </div>
+            <strong>${formatCurrency(cartao.anuidadeCentavos || 0)}</strong>
+          </div>
+        `;
+        row.appendChild(buildActions({
+          onEdit: () => startEditing("cartao", cartao.id),
+          onDelete: () => deleteCartao(cartao.id)
+        }));
+      }
 
       if (compras.length) {
         const nestedCompras = document.createElement("div");
@@ -707,19 +892,25 @@ function renderRegistros() {
         compras.forEach(compra => {
           const compraNode = document.createElement("div");
           compraNode.className = "summary-item";
-          compraNode.innerHTML = `
-            <div class="row-between">
-              <div>
-                <div class="title">${escapeHtml(compra.nome)}</div>
-                <div class="muted">Parcela ${compra.parcelaAtual}/${compra.totalParcelas}</div>
+
+          if (state.editing.type === "compra" && state.editing.id === compra.id) {
+            compraNode.appendChild(buildEditCompraForm(compra));
+          } else {
+            compraNode.innerHTML = `
+              <div class="row-between">
+                <div>
+                  <div class="title">${escapeHtml(compra.nome)}</div>
+                  <div class="muted">Parcela ${compra.parcelaAtual}/${compra.totalParcelas}</div>
+                </div>
+                <strong>${formatCurrency(compra.valorParcelaCentavos)}</strong>
               </div>
-              <strong>${formatCurrency(compra.valorParcelaCentavos)}</strong>
-            </div>
-          `;
-          compraNode.appendChild(buildActions({
-            onEdit: () => editCompra(compra.id),
-            onDelete: () => deleteCompra(compra.id)
-          }));
+            `;
+            compraNode.appendChild(buildActions({
+              onEdit: () => startEditing("compra", compra.id),
+              onDelete: () => deleteCompra(compra.id)
+            }));
+          }
+
           nestedCompras.appendChild(compraNode);
         });
 
@@ -732,6 +923,20 @@ function renderRegistros() {
     block.appendChild(nested);
     container.appendChild(block);
   }
+}
+
+function renderRendasAfterEdit() {
+  renderConsulta();
+}
+
+function startEditing(type, id) {
+  state.editing = { type, id };
+  renderAll();
+}
+
+function stopEditing() {
+  state.editing = { type: null, id: null };
+  renderAll();
 }
 
 function buildActions({ onEdit, onDelete }) {
@@ -755,129 +960,224 @@ function buildActions({ onEdit, onDelete }) {
   return actions;
 }
 
-function editFixa(id) {
-  const item = state.db.dividasFixas.find(x => x.id === id);
-  if (!item) return;
+function buildEditFixaForm(item) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="form-grid">
+      <label>Nome da dívida</label>
+      <input type="text" class="edit-fixa-nome" value="${escapeAttribute(item.nome)}">
 
-  const novoNome = prompt("Nome da dívida:", item.nome);
-  if (novoNome === null) return;
+      <label>Valor mensal</label>
+      <input type="text" class="money-input edit-fixa-valor" inputmode="numeric" value="${formatCurrency(item.valorCentavos)}">
 
-  const novoValor = prompt("Digite o novo valor em formato numérico simples.\nExemplo: 120000 para R$ 1.200,00", String(item.valorCentavos));
-  if (novoValor === null) return;
+      <label>Parcelas restantes</label>
+      <input type="number" class="edit-fixa-parcelas" min="1" max="999" value="${item.parcelasRestantes}">
 
-  const novasParcelas = prompt("Parcelas restantes:", String(item.parcelasRestantes));
-  if (novasParcelas === null) return;
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  `;
 
-  const valorCentavos = Number(String(novoValor).replace(/\D/g, ""));
-  const parcelasRestantes = Number(novasParcelas);
+  const money = wrap.querySelector(".edit-fixa-valor");
+  bindMoneyInput(money);
 
-  if (!novoNome.trim() || !valorCentavos || !parcelasRestantes || parcelasRestantes < 1) {
-    alert("Dados inválidos. Alteração cancelada.");
-    return;
-  }
+  const [saveBtn, cancelBtn] = wrap.querySelectorAll("button");
+  saveBtn.addEventListener("click", () => {
+    const nome = wrap.querySelector(".edit-fixa-nome").value.trim();
+    const valorCentavos = parseMoneyInput(wrap.querySelector(".edit-fixa-valor").value);
+    const parcelasRestantes = Number(wrap.querySelector(".edit-fixa-parcelas").value);
 
-  item.nome = novoNome.trim();
-  item.valorCentavos = valorCentavos;
-  item.parcelasRestantes = parcelasRestantes;
+    if (!nome || !valorCentavos || !parcelasRestantes || parcelasRestantes < 1) {
+      alert("Dados inválidos.");
+      return;
+    }
 
-  saveDB();
-  recalculateProjection();
-  renderAll();
-  alert("Dívida fixa atualizada.");
+    item.nome = nome;
+    item.valorCentavos = valorCentavos;
+    item.parcelasRestantes = parcelasRestantes;
+    saveAndRefresh();
+    stopEditing();
+  });
+
+  cancelBtn.addEventListener("click", stopEditing);
+  return wrap;
 }
 
+function buildEditCartaoForm(item) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="form-grid">
+      <label>Nome do cartão</label>
+      <input type="text" class="edit-cartao-nome" value="${escapeAttribute(item.nome)}">
+
+      <label>Anuidade mensal</label>
+      <input type="text" class="money-input edit-cartao-anuidade" inputmode="numeric" value="${formatCurrency(item.anuidadeCentavos || 0)}">
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  const money = wrap.querySelector(".edit-cartao-anuidade");
+  bindMoneyInput(money);
+
+  const [saveBtn, cancelBtn] = wrap.querySelectorAll("button");
+  saveBtn.addEventListener("click", () => {
+    const nome = wrap.querySelector(".edit-cartao-nome").value.trim();
+    const anuidadeCentavos = parseMoneyInput(wrap.querySelector(".edit-cartao-anuidade").value);
+
+    if (!nome) {
+      alert("Dados inválidos.");
+      return;
+    }
+
+    item.nome = nome;
+    item.anuidadeCentavos = anuidadeCentavos;
+    saveAndRefresh();
+    stopEditing();
+  });
+
+  cancelBtn.addEventListener("click", stopEditing);
+  return wrap;
+}
+
+function buildEditCompraForm(item) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="form-grid">
+      <label>Nome da compra</label>
+      <input type="text" class="edit-compra-nome" value="${escapeAttribute(item.nome)}">
+
+      <label>Valor da parcela</label>
+      <input type="text" class="money-input edit-compra-valor" inputmode="numeric" value="${formatCurrency(item.valorParcelaCentavos)}">
+
+      <label>Parcela atual</label>
+      <input type="number" class="edit-compra-atual" min="1" max="999" value="${item.parcelaAtual}">
+
+      <label>Total de parcelas</label>
+      <input type="number" class="edit-compra-total" min="1" max="999" value="${item.totalParcelas}">
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  const money = wrap.querySelector(".edit-compra-valor");
+  bindMoneyInput(money);
+
+  const [saveBtn, cancelBtn] = wrap.querySelectorAll("button");
+  saveBtn.addEventListener("click", () => {
+    const nome = wrap.querySelector(".edit-compra-nome").value.trim();
+    const valorParcelaCentavos = parseMoneyInput(wrap.querySelector(".edit-compra-valor").value);
+    const parcelaAtual = Number(wrap.querySelector(".edit-compra-atual").value);
+    const totalParcelas = Number(wrap.querySelector(".edit-compra-total").value);
+
+    if (!nome || !valorParcelaCentavos || !parcelaAtual || !totalParcelas || totalParcelas < parcelaAtual) {
+      alert("Dados inválidos.");
+      return;
+    }
+
+    item.nome = nome;
+    item.valorParcelaCentavos = valorParcelaCentavos;
+    item.parcelaAtual = parcelaAtual;
+    item.totalParcelas = totalParcelas;
+    saveAndRefresh();
+    stopEditing();
+  });
+
+  cancelBtn.addEventListener("click", stopEditing);
+  return wrap;
+}
+
+function buildEditRendaForm(item) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="form-grid">
+      <label>Nome da renda</label>
+      <input type="text" class="edit-renda-nome" value="${escapeAttribute(item.nome)}">
+
+      <label>Valor</label>
+      <input type="text" class="money-input edit-renda-valor" inputmode="numeric" value="${formatCurrency(item.valorCentavos)}">
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  const money = wrap.querySelector(".edit-renda-valor");
+  bindMoneyInput(money);
+
+  const [saveBtn, cancelBtn] = wrap.querySelectorAll("button");
+  saveBtn.addEventListener("click", () => {
+    const nome = wrap.querySelector(".edit-renda-nome").value.trim();
+    const valorCentavos = parseMoneyInput(wrap.querySelector(".edit-renda-valor").value);
+
+    if (!nome || !valorCentavos) {
+      alert("Dados inválidos.");
+      return;
+    }
+
+    item.nome = nome;
+    item.valorCentavos = valorCentavos;
+    saveAndRefresh();
+    stopEditing();
+  });
+
+  cancelBtn.addEventListener("click", stopEditing);
+  return wrap;
+}
+
+/* =========================================================
+   EXCLUSÃO
+   ========================================================= */
 function deleteFixa(id) {
   if (!confirm("Tem certeza que deseja excluir esta dívida?")) return;
   state.db.dividasFixas = state.db.dividasFixas.filter(x => x.id !== id);
-  saveDB();
-  recalculateProjection();
-  renderAll();
-}
-
-function editCartao(id) {
-  const item = state.db.cartoes.find(x => x.id === id);
-  if (!item) return;
-
-  const novoNome = prompt("Nome do cartão:", item.nome);
-  if (novoNome === null) return;
-
-  const novaAnuidade = prompt("Digite a nova anuidade mensal em formato numérico simples.\nExemplo: 2500 para R$ 25,00", String(item.anuidadeCentavos || 0));
-  if (novaAnuidade === null) return;
-
-  const anuidadeCentavos = Number(String(novaAnuidade).replace(/\D/g, ""));
-
-  if (!novoNome.trim()) {
-    alert("Nome inválido. Alteração cancelada.");
-    return;
-  }
-
-  item.nome = novoNome.trim();
-  item.anuidadeCentavos = anuidadeCentavos;
-
-  saveDB();
-  recalculateProjection();
-  renderAll();
-  alert("Cartão atualizado.");
+  saveAndRefresh();
 }
 
 function deleteCartao(id) {
   if (!confirm("Tem certeza que deseja excluir este cartão e todas as compras vinculadas?")) return;
   state.db.cartoes = state.db.cartoes.filter(x => x.id !== id);
   state.db.comprasCartao = state.db.comprasCartao.filter(x => x.cartaoId !== id);
-  saveDB();
-  recalculateProjection();
-  renderAll();
-}
-
-function editCompra(id) {
-  const item = state.db.comprasCartao.find(x => x.id === id);
-  if (!item) return;
-
-  const novoNome = prompt("Nome da compra:", item.nome);
-  if (novoNome === null) return;
-
-  const novoValor = prompt("Digite o novo valor da parcela em formato numérico simples.\nExemplo: 12000 para R$ 120,00", String(item.valorParcelaCentavos));
-  if (novoValor === null) return;
-
-  const novaAtual = prompt("Parcela atual:", String(item.parcelaAtual));
-  if (novaAtual === null) return;
-
-  const novoTotal = prompt("Total de parcelas:", String(item.totalParcelas));
-  if (novoTotal === null) return;
-
-  const valorParcelaCentavos = Number(String(novoValor).replace(/\D/g, ""));
-  const parcelaAtual = Number(novaAtual);
-  const totalParcelas = Number(novoTotal);
-
-  if (!novoNome.trim() || !valorParcelaCentavos || !parcelaAtual || !totalParcelas || parcelaAtual < 1 || totalParcelas < parcelaAtual) {
-    alert("Dados inválidos. Alteração cancelada.");
-    return;
-  }
-
-  item.nome = novoNome.trim();
-  item.valorParcelaCentavos = valorParcelaCentavos;
-  item.parcelaAtual = parcelaAtual;
-  item.totalParcelas = totalParcelas;
-
-  saveDB();
-  recalculateProjection();
-  renderAll();
-  alert("Compra atualizada.");
+  saveAndRefresh();
 }
 
 function deleteCompra(id) {
   if (!confirm("Tem certeza que deseja excluir esta compra?")) return;
   state.db.comprasCartao = state.db.comprasCartao.filter(x => x.id !== id);
+  saveAndRefresh();
+}
+
+function deleteRenda(id) {
+  if (!confirm("Tem certeza que deseja excluir esta renda?")) return;
+  state.db.rendas = state.db.rendas.filter(x => x.id !== id);
+  saveAndRefresh();
+}
+
+/* =========================================================
+   UTILITÁRIOS
+   ========================================================= */
+function saveAndRefresh() {
   saveDB();
   recalculateProjection();
   renderAll();
 }
 
-/* =========================================================
-   10. UTILITÁRIOS
-   ========================================================= */
 function generateId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function byId(id) {
+  return document.getElementById(id);
 }
 
 function emptyNode(message) {
@@ -885,6 +1185,25 @@ function emptyNode(message) {
   div.className = "empty-state";
   div.textContent = message;
   return div;
+}
+
+function formatPercent(value) {
+  if (!isFinite(value) || value >= 999) return "100%+";
+  return `${Math.round(value * 100)}%`;
+}
+
+function emptyProjectionMonth() {
+  return {
+    label: "Sem dados",
+    rendaTotalCentavos: 0,
+    totalCentavos: 0,
+    saldoCentavos: 0,
+    comprometimento: 0,
+    status: "yellow",
+    statusText: "Sem dados",
+    fixas: { totalCentavos: 0, items: [] },
+    cartoes: { totalCentavos: 0, items: [] }
+  };
 }
 
 function escapeHtml(value) {
@@ -896,8 +1215,12 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}
+
 /* =========================================================
-   11. SERVICE WORKER
+   SERVICE WORKER
    ========================================================= */
 function registerSW() {
   if ("serviceWorker" in navigator) {
