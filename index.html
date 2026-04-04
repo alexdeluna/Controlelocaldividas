@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Dívidas</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./visual.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Controle de Dívidas</h1>
+        <p class="subtitle">Projeção financeira de 36 meses</p>
+      </div>
+      <button id="btnTema" class="btn btn-ghost" type="button" aria-label="Alternar tema">🌙 Tema</button>
+    </header>
+
+    <main>
+      <section id="screen-menu" class="screen active">
+        <div class="hero-card">
+          <h2>Menu principal</h2>
+          <p>Escolha uma opção para começar.</p>
+          <div class="menu-actions">
+            <button id="btnIrInserir" class="btn btn-primary" type="button">Inserir dívida</button>
+            <button id="btnIrConsultar" class="btn btn-secondary" type="button">Consultar projeção</button>
+          </div>
+        </div>
+
+        <div class="helper-card">
+          <h3>Como funciona</h3>
+          <p>Cadastre dívidas fixas ou cartões com compras parceladas. O aplicativo calcula automaticamente a projeção dos próximos 36 meses.</p>
+        </div>
+      </section>
+
+      <section id="screen-inserir" class="screen">
+        <div class="screen-header">
+          <button class="btn btn-ghost" data-back="menu" type="button">← Voltar</button>
+          <h2>Inserir dívida</h2>
+        </div>
+
+        <div class="card">
+          <label for="tipoCadastro">Tipo de cadastro</label>
+          <select id="tipoCadastro">
+            <option value="fixa">Dívida fixa</option>
+            <option value="cartao">Cartão</option>
+            <option value="compra">Compra do cartão</option>
+          </select>
+        </div>
+
+        <form id="formFixa" class="card form-grid">
+          <h3>Dívida fixa</h3>
+
+          <label for="fixaNome">Nome da dívida</label>
+          <input id="fixaNome" type="text" placeholder="Ex.: Carro" maxlength="80">
+
+          <label for="fixaValor">Valor mensal</label>
+          <input id="fixaValor" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+
+          <label for="fixaParcelas">Parcelas restantes</label>
+          <input id="fixaParcelas" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 35">
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Salvar dívida fixa</button>
+          </div>
+        </form>
+
+        <form id="formCartao" class="card form-grid hidden">
+          <h3>Cartão</h3>
+
+          <label for="cartaoNome">Nome do cartão</label>
+          <input id="cartaoNome" type="text" placeholder="Ex.: Master01" maxlength="80">
+
+          <label for="cartaoAnuidade">Anuidade mensal</label>
+          <input id="cartaoAnuidade" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Salvar cartão</button>
+          </div>
+        </form>
+
+        <form id="formCompra" class="card form-grid hidden">
+          <h3>Compra do cartão</h3>
+
+          <label for="compraCartaoId">Cartão</label>
+          <select id="compraCartaoId"></select>
+
+          <label for="compraNome">Nome da compra</label>
+          <input id="compraNome" type="text" placeholder="Ex.: Armazém Bezerra" maxlength="80">
+
+          <label for="compraValor">Valor da parcela</label>
+          <input id="compraValor" class="money-input" inputmode="numeric" type="text" placeholder="R$ 0,00">
+
+          <label for="compraParcelaAtual">Parcela atual</label>
+          <input id="compraParcelaAtual" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 3">
+
+          <label for="compraTotalParcelas">Total de parcelas</label>
+          <input id="compraTotalParcelas" inputmode="numeric" type="number" min="1" max="999" placeholder="Ex.: 10">
+
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Salvar compra</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3>Registros cadastrados</h3>
+          <p class="muted">Edite ou exclua qualquer item quando precisar.</p>
+          <div id="listaRegistros" class="stack"></div>
+        </div>
+      </section>
+
+      <section id="screen-consultar" class="screen">
+        <div class="screen-header">
+          <button class="btn btn-ghost" data-back="menu" type="button">← Voltar</button>
+          <h2>Consultar projeção</h2>
+        </div>
+
+        <div class="card month-nav-card">
+          <button id="btnMesAnterior" class="btn btn-ghost" type="button">◀</button>
+          <div class="month-nav-center">
+            <div id="mesTitulo" class="month-title"></div>
+            <div id="mesSubtitulo" class="muted"></div>
+          </div>
+          <button id="btnMesSeguinte" class="btn btn-ghost" type="button">▶</button>
+        </div>
+
+        <div class="card total-card">
+          <div class="muted">Total do mês</div>
+          <div id="totalMes" class="big-total">R$ 0,00</div>
+        </div>
+
+        <div class="card">
+          <div class="level-header">
+            <h3>Resumo do mês</h3>
+            <button id="btnToggleResumo36" class="btn btn-ghost btn-small" type="button">Ver 36 meses</button>
+          </div>
+
+          <div id="painelResumoMes"></div>
+
+          <div id="painelResumo36" class="hidden">
+            <div class="divider"></div>
+            <div id="listaResumo36" class="stack compact"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Detalhamento por categoria</h3>
+          <div id="painelCategorias" class="stack"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
