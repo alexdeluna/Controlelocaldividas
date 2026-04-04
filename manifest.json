@@ -1,7 +1,7 @@
 {
   "name": "Controle de Dívidas",
   "short_name": "Dívidas",
-  "description": "PWA simples para projeção financeira de 36 meses.",
+  "description": "PWA para projeção financeira de 36 meses, rendas, simulação e saúde financeira.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
