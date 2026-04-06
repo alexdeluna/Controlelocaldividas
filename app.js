@@ -206,15 +206,16 @@ function fillCartaoSelect() {
     option.textContent = cartao.nome;
     select.appendChild(option);
   });
-}
 
-function onSubmitFixa(event) {
+  function onSubmitFixa(event) {
   event.preventDefault();
+
   const nome = byId("fixaNome").value.trim();
   const valorCentavos = parseMoneyInput(byId("fixaValor").value);
   const parcelasRestantes = Number(byId("fixaParcelas").value);
+  const dueDay = Number(byId("fixaVencimento").value);
 
-  if (!nome || !valorCentavos || !parcelasRestantes || parcelasRestantes < 1) {
+  if (!nome || !valorCentavos || !parcelasRestantes || parcelasRestantes < 1 || !dueDay) {
     alert("Preencha a dívida fixa corretamente.");
     return;
   }
@@ -223,7 +224,8 @@ function onSubmitFixa(event) {
     id: generateId("fixa"),
     nome,
     valorCentavos,
-    parcelasRestantes
+    parcelasRestantes,
+    dueDay
   });
 
   saveAndRefresh();
@@ -233,18 +235,21 @@ function onSubmitFixa(event) {
 
 function onSubmitCartao(event) {
   event.preventDefault();
+
   const nome = byId("cartaoNome").value.trim();
   const anuidadeCentavos = parseMoneyInput(byId("cartaoAnuidade").value);
+  const dueDay = Number(byId("cartaoVencimento").value);
 
-  if (!nome) {
-    alert("Informe o nome do cartão.");
+  if (!nome || !dueDay) {
+    alert("Informe o nome e vencimento do cartão.");
     return;
   }
 
   state.db.cartoes.push({
     id: generateId("cartao"),
     nome,
-    anuidadeCentavos
+    anuidadeCentavos,
+    dueDay
   });
 
   saveAndRefresh();
@@ -344,7 +349,11 @@ function buildProjection(db) {
 
     db.dividasFixas.forEach(divida => {
       if (divida.parcelasRestantes > offset) {
-        monthData.fixas.items.push({ ...divida, tipo: "fixa" });
+        monthData.fixas.items.push({
+  ...divida,
+  tipo: "fixa",
+  dueDay: divida.dueDay || 1
+});
         monthData.fixas.totalCentavos += divida.valorCentavos;
         monthData.totalCentavos += divida.valorCentavos;
       }
@@ -365,14 +374,15 @@ function buildProjection(db) {
       const totalCartao = comprasTotal + anuidade;
 
       if (comprasAtivas.length || anuidade > 0) {
-        monthData.cartoes.items.push({
-          id: cartao.id,
-          nome: cartao.nome,
-          anuidadeCentavos: anuidade,
-          totalCentavos: totalCartao,
-          compras: comprasAtivas,
-          tipo: "cartao"
-        });
+       monthData.cartoes.items.push({
+  id: cartao.id,
+  nome: cartao.nome,
+  dueDay: cartao.dueDay || 1,
+  anuidadeCentavos: anuidade,
+  totalCentavos: totalCartao,
+  compras: comprasAtivas,
+  tipo: "cartao"
+});
         monthData.cartoes.totalCentavos += totalCartao;
         monthData.totalCentavos += totalCartao;
       }
@@ -404,6 +414,9 @@ function getFinancialStatus(dividas, renda) {
 function getCurrentMonthData() {
   return state.projection[state.monthIndex] || emptyProjectionMonth();
 }
+
+  monthData.fixas.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
+monthData.cartoes.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
 
 /* =========================================================
    RENDER CONSULTA
@@ -550,14 +563,16 @@ function renderFixasDetalhes(month) {
     const div = document.createElement("div");
     div.className = "detail-card";
     div.innerHTML = `
-      <div class="row-between">
-        <div>
-          <div class="title">${escapeHtml(item.nome)}</div>
-          <div class="muted">${item.parcelasRestantes} parcela(s) restantes no cadastro</div>
-        </div>
-        <strong>${formatCurrency(item.valorCentavos)}</strong>
+  <div class="row-between">
+    <div>
+      <div class="title">${escapeHtml(item.nome)}</div>
+      <div class="muted">
+        Vence dia ${item.dueDay || "-"} • ${item.parcelasRestantes} parcela(s) restantes
       </div>
-    `;
+    </div>
+    <strong>${formatCurrency(item.valorCentavos)}</strong>
+  </div>
+`;
     return div;
   });
 }
@@ -625,6 +640,10 @@ function renderCartoesDetalhes(month) {
 
       div.appendChild(nested);
     }
+
+    <div class="muted">
+  Vence dia ${cartao.dueDay || "-"} • ${cartao.compras.length} compra(s)
+</div>
 
     return div;
   });
@@ -704,10 +723,11 @@ function buildTimeline() {
     const endOffset = item.parcelasRestantes - 1;
     if (endOffset >= 0) {
       list.push({
-        nome: item.nome,
-        tipoLabel: "Dívida fixa",
-        date: new Date(start.getFullYear(), start.getMonth() + endOffset, 1)
-      });
+  nome: item.nome,
+  tipoLabel: "Dívida fixa",
+  dueDay: item.dueDay,
+  date: new Date(start.getFullYear(), start.getMonth() + endOffset, item.dueDay || 1)
+});
     }
   });
 
@@ -726,7 +746,7 @@ function buildTimeline() {
   list.sort((a, b) => a.date - b.date);
   return list.map(item => ({
     ...item,
-    label: `${MONTH_NAMES[item.date.getMonth()]} de ${item.date.getFullYear()}`
+    label: `${item.date.getDate()} ${MONTH_NAMES[item.date.getMonth()]} de ${item.date.getFullYear()}`
   }));
 }
 
