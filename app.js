@@ -591,7 +591,9 @@ function renderCartoesDetalhes(month) {
       <div class="row-between">
         <div>
           <div class="title">${escapeHtml(cartao.nome)}</div>
-         
+          <div class="muted">
+            Vence dia ${cartao.dueDay || "-"} • ${cartao.compras.length} compra(s)
+          </div>
         </div>
         <div style="text-align:right">
           <div><strong>${formatCurrency(cartao.totalCentavos)}</strong></div>
@@ -614,7 +616,10 @@ function renderCartoesDetalhes(month) {
         node.className = "summary-item";
         node.innerHTML = `
           <div class="row-between">
-            <span class="title">Anuidade</span>
+            <div>
+              <span class="title">Anuidade</span>
+              <div class="muted">Vence dia ${cartao.dueDay || "-"}</div>
+            </div>
             <strong>${formatCurrency(cartao.anuidadeCentavos)}</strong>
           </div>
         `;
@@ -629,7 +634,9 @@ function renderCartoesDetalhes(month) {
             <div class="row-between">
               <div>
                 <div class="title">${escapeHtml(compra.nome)}</div>
-                <div class="muted">Parcela ${compra.parcelaAtual}/${compra.totalParcelas}</div>
+                <div class="muted">
+                  Parcela ${compra.parcelaAtual}/${compra.totalParcelas} • Vence dia ${compra.dueDay || cartao.dueDay || "-"}
+                </div>
               </div>
               <strong>${formatCurrency(compra.valorParcelaCentavos)}</strong>
             </div>
@@ -642,10 +649,6 @@ function renderCartoesDetalhes(month) {
 
       div.appendChild(nested);
     }
-
-    <div class="muted">
-  Vence dia ${cartao.dueDay || "-"} • ${cartao.compras.length} compra(s)
-</div>
 
     return div;
   });
