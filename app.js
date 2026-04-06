@@ -391,7 +391,9 @@ function buildProjection(db) {
       }
     });
 
-   
+    monthData.fixas.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
+    monthData.cartoes.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
+
     const statusObj = getFinancialStatus(monthData.totalCentavos, rendaTotalCentavos);
     monthData.status = statusObj.status;
     monthData.statusText = statusObj.text;
