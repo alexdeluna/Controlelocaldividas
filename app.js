@@ -206,7 +206,7 @@ function fillCartaoSelect() {
     option.textContent = cartao.nome;
     select.appendChild(option);
   });
-
+}
   function onSubmitFixa(event) {
   event.preventDefault();
 
@@ -385,12 +385,13 @@ function buildProjection(db) {
 });
         monthData.cartoes.totalCentavos += totalCartao;
         monthData.totalCentavos += totalCartao;
+        monthData.saldoCentavos = rendaTotalCentavos - monthData.totalCentavos;
+        monthData.comprometimento = rendaTotalCentavos > 0 ? monthData.totalCentavos / rendaTotalCentavos : (monthData.totalCentavos > 0 ? 999 : 0);
+
       }
     });
 
-    monthData.saldoCentavos = rendaTotalCentavos - monthData.totalCentavos;
-    monthData.comprometimento = rendaTotalCentavos > 0 ? monthData.totalCentavos / rendaTotalCentavos : (monthData.totalCentavos > 0 ? 999 : 0);
-
+   
     const statusObj = getFinancialStatus(monthData.totalCentavos, rendaTotalCentavos);
     monthData.status = statusObj.status;
     monthData.statusText = statusObj.text;
@@ -589,7 +590,9 @@ function renderCartoesDetalhes(month) {
       <div class="row-between">
         <div>
           <div class="title">${escapeHtml(cartao.nome)}</div>
-          <div class="muted">${cartao.compras.length} compra(s) ativa(s)</div>
+          <div class="muted">
+            Vence dia ${cartao.dueDay || "-"} • ${cartao.compras.length} compra(s)
+          </div>
         </div>
         <div style="text-align:right">
           <div><strong>${formatCurrency(cartao.totalCentavos)}</strong></div>
