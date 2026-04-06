@@ -416,8 +416,7 @@ function getCurrentMonthData() {
   return state.projection[state.monthIndex] || emptyProjectionMonth();
 }
 
-  monthData.fixas.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
-monthData.cartoes.items.sort((a, b) => (a.dueDay || 1) - (b.dueDay || 1));
+  
 
 /* =========================================================
    RENDER CONSULTA
@@ -590,9 +589,7 @@ function renderCartoesDetalhes(month) {
       <div class="row-between">
         <div>
           <div class="title">${escapeHtml(cartao.nome)}</div>
-          <div class="muted">
-            Vence dia ${cartao.dueDay || "-"} • ${cartao.compras.length} compra(s)
-          </div>
+         
         </div>
         <div style="text-align:right">
           <div><strong>${formatCurrency(cartao.totalCentavos)}</strong></div>
