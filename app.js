@@ -277,13 +277,14 @@ function onSubmitCompra(event) {
   }
 
   state.db.comprasCartao.push({
-    id: generateId("compra"),
-    cartaoId,
-    nome,
-    valorParcelaCentavos,
-    parcelaAtual,
-    totalParcelas
-  });
+  id: generateId("compra"),
+  cartaoId,
+  nome,
+  valorParcelaCentavos,
+  parcelaAtual,
+  totalParcelas,
+  parcelasIgnoradas: []
+});
 
   saveAndRefresh();
   clearForm("formCompra");
@@ -361,15 +362,28 @@ function buildProjection(db) {
 
     db.cartoes.forEach(cartao => {
       const comprasAtivas = db.comprasCartao
-        .filter(compra => compra.cartaoId === cartao.id)
-        .filter(compra => (compra.totalParcelas - compra.parcelaAtual + 1) > offset)
-        .map(compra => ({
-          ...compra,
-          parcelasRestantes: compra.totalParcelas - compra.parcelaAtual + 1,
-          tipo: "compra"
-        }));
+  .filter(compra => compra.cartaoId === cartao.id)
+  .filter(compra => (compra.totalParcelas - compra.parcelaAtual + 1) > offset)
+  .map(compra => {
+    const parcelaNoMes = compra.parcelaAtual + offset;
+    const parcelasIgnoradas = Array.isArray(compra.parcelasIgnoradas)
+      ? compra.parcelasIgnoradas
+      : [];
 
-      const comprasTotal = comprasAtivas.reduce((sum, c) => sum + c.valorParcelaCentavos, 0);
+    return {
+      ...compra,
+      parcelasRestantes: compra.totalParcelas - compra.parcelaAtual + 1,
+      tipo: "compra",
+      parcelaNoMes,
+      parcelasIgnoradas,
+      ignoradaNesteMes: parcelasIgnoradas.includes(parcelaNoMes),
+      dueDay: cartao.dueDay || 1
+    };
+  });
+
+const comprasTotal = comprasAtivas.reduce((sum, c) => {
+  return sum + (c.ignoradaNesteMes ? 0 : c.valorParcelaCentavos);
+}, 0);
       const anuidade = Number(cartao.anuidadeCentavos || 0);
       const totalCartao = comprasTotal + anuidade;
 
@@ -631,16 +645,46 @@ function renderCartoesDetalhes(month) {
           const node = document.createElement("div");
           node.className = "summary-item";
           node.innerHTML = `
-            <div class="row-between">
-              <div>
-                <div class="title">${escapeHtml(compra.nome)}</div>
-                <div class="muted">
-                  Parcela ${compra.parcelaAtual}/${compra.totalParcelas} • Vence dia ${compra.dueDay || cartao.dueDay || "-"}
-                </div>
-              </div>
-              <strong>${formatCurrency(compra.valorParcelaCentavos)}</strong>
-            </div>
-          `;
+  <div class="row-between">
+    <div>
+      <div class="title">${escapeHtml(compra.nome)}</div>
+      <div class="muted">
+        Parcela ${compra.parcelaNoMes}/${compra.totalParcelas} •
+        Vence dia ${compra.dueDay || cartao.dueDay || "-"}
+      </div>
+      <div class="muted">
+        ${compra.ignoradaNesteMes ? "Parcela ignorada neste mês" : "Parcela considerada neste mês"}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div><strong>${formatCurrency(compra.valorParcelaCentavos)}</strong></div>
+      <button class="btn btn-danger btn-small btn-toggle-parcela" type="button">
+        ${compra.ignoradaNesteMes ? "Reativar parcela" : "Ignorar parcela"}
+      </button>
+    </div>
+  </div>
+`;
+          node.querySelector(".btn-toggle-parcela").addEventListener("click", () => {
+  const compraDb = state.db.comprasCartao.find(c => c.id === compra.id);
+  if (!compraDb) return;
+
+  if (!Array.isArray(compraDb.parcelasIgnoradas)) {
+    compraDb.parcelasIgnoradas = [];
+  }
+
+  const numeroParcela = compra.parcelaNoMes;
+  const jaIgnorada = compraDb.parcelasIgnoradas.includes(numeroParcela);
+
+  if (jaIgnorada) {
+    compraDb.parcelasIgnoradas = compraDb.parcelasIgnoradas.filter(p => p !== numeroParcela);
+  } else {
+    compraDb.parcelasIgnoradas.push(numeroParcela);
+  }
+
+  saveAndRefresh();
+  renderConsulta();
+});
+          
           nested.appendChild(node);
         });
       } else {
